@@ -41,7 +41,8 @@ export default {
       return new Response("OK", { status: 200 });
     }
 
-    if (!userId) {
+    // Игнорируем сообщения без ID или отправленные ботами (включая GroupAnonymousBot)
+    if (!userId || user.is_bot) {
       return new Response("OK", { status: 200 });
     }
 
