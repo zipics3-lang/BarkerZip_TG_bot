@@ -1,0 +1,10 @@
+name = "barkerzip-tg-bot"
+main = "main.py"
+compatibility_date = "2026-03-01"
+
+[vars]
+BOT_TOKEN = "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg"
+
+[[kv_namespaces]]
+binding = "USERS_KV"
+id = "ВАШ_KV_NAMESPACE_ID" # Замените на ID созданного KV-хранилища
