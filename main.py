@@ -2,7 +2,7 @@ import json
 import random
 from js import Response, fetch as cf_fetch
 
-async def fetch(request, env, ctx):
+async def on_fetch(request, env, ctx):
     if request.method != "POST":
         return Response.new("Telegram Ping Bot is running successfully!", status=200)
 
