@@ -30,7 +30,6 @@ export default {
     let storedUsersRaw = await env.KV.get(kvKey);
     let usersDict = storedUsersRaw ? JSON.parse(storedUsersRaw) : {};
 
-    // Проверяем, не покинул ли участник чат
     const leftMember = message.left_chat_member;
     if (leftMember) {
       const leftUserId = String(leftMember.id);
@@ -41,12 +40,10 @@ export default {
       return new Response("OK", { status: 200 });
     }
 
-    // Игнорируем сообщения без ID или отправленные ботами (включая GroupAnonymousBot)
     if (!userId || user.is_bot) {
       return new Response("OK", { status: 200 });
     }
 
-    // Сохраняем / обновляем активного пользователя в базе чата
     const firstName = user.first_name || "User";
     usersDict[String(userId)] = { id: userId, name: firstName };
 
@@ -59,7 +56,6 @@ export default {
 
     const botToken = env.BOT_TOKEN || "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg";
 
-    // Обработка команды /barker
     if (text.toLowerCase().startsWith("/barker")) {
       const isAdmin = await checkIfAdmin(botToken, chatId, userId);
       if (!isAdmin) {
@@ -73,8 +69,6 @@ export default {
       }
 
       const comment = text.slice("/barker".length).trim() || "Внимание!";
-
-      // Берем ВСЕХ пользователей из базы (включая администраторов)
       const availableUsers = Object.values(usersDict);
 
       if (availableUsers.length === 0) {
@@ -87,15 +81,56 @@ export default {
         return new Response("OK", { status: 200 });
       }
 
-      // Пингуем всех
       const mentions = availableUsers.map(u => {
         const safeName = escapeHtml(u.name);
         return `<a href="tg://user?id=${u.id}">${safeName}</a>`;
       });
 
       const responseText = `<b>{escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
-      // Исправление синтаксиса шаблона строки ниже:
+      // Заменено на корректное выражение со знаком $:
       // const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
-
+      
+      await sendTelegramMessage(botToken, chatId, responseText, message.message_id);
     }
-    // ...
+
+    return new Response("OK", { status: 200 });
+  }
+};
+
+async function checkIfAdmin(token, chatId, userId) {
+  const url = `https://api.telegram.org/bot${token}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.ok) {
+      const status = data.result?.status;
+      return status === "creator" || status === "administrator";
+    }
+  } catch (e) {}
+  return false;
+}
+
+async function sendTelegramMessage(token, chatId, text, replyToMessageId) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: "HTML"
+  };
+  if (replyToMessageId) {
+    payload.reply_to_message_id = replyToMessageId;
+  }
+
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
