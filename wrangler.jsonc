@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "barkerzip-tg-bot",
+  "main": "main.py",
+  "compatibility_date": "2026-03-01",
+  "vars": {
+    "BOT_TOKEN": "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "66a6950f069444dc974be0ec68110e36"
+    }
+  ]
+}
