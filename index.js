@@ -74,6 +74,7 @@ export default {
 
       const comment = text.slice("/ping".length).trim() || "Внимание!";
 
+      // Берем ВСЕХ пользователей из базы (исключая того, кто вызвал команду)
       const availableUsers = Object.values(usersDict).filter(u => Number(u.id) !== Number(userId));
 
       if (availableUsers.length === 0) {
@@ -86,14 +87,13 @@ export default {
         return new Response("OK", { status: 200 });
       }
 
-      const selectedUsers = getRandomSample(availableUsers, 5);
-
-      const mentions = selectedUsers.map(u => {
+      // Пингуем всех найденных участников
+      const mentions = availableUsers.map(u => {
         const safeName = escapeHtml(u.name);
         return `<a href="tg://user?id=${u.id}">${safeName}</a>`;
       });
 
-      const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем участников: ` + mentions.join(", ");
+      const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
 
       await sendTelegramMessage(botToken, chatId, responseText, message.message_id);
     }
@@ -131,11 +131,6 @@ async function sendTelegramMessage(token, chatId, text, replyToMessageId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-}
-
-function getRandomSample(arr, count) {
-  const shuffled = [...arr].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
 }
 
 function escapeHtml(text) {
