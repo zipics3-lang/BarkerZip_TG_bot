@@ -1,123 +1,145 @@
-import json
-import random
-from js import Response, fetch as cf_fetch
-
-async def on_fetch(request, env, ctx):
-    if request.method != "POST":
-        return Response.new("Telegram Ping Bot is running successfully!", status=200)
-
-    try:
-        body = await request.json()
-    except Exception:
-        return Response.new("Invalid JSON", status=400)
-
-    message = body.get("message") or body.get("edited_message")
-    if not message:
-        return Response.new("OK", status=200)
-
-    chat = message.get("chat", {})
-    chat_id = chat.get("id")
-    user = message.get("from", {})
-    user_id = user.get("id")
-    text = message.get("text", "").strip()
-
-    if not chat_id:
-        return Response.new("OK", status=200)
-
-    kv_key = f"chat_{chat_id}_users"
-    stored_users_raw = await env.KV.get(kv_key)
-    users_dict = json.loads(stored_users_raw) if stored_users_raw else {}
-
-    # Проверяем, не покинул ли участник чат
-    left_member = message.get("left_chat_member")
-    if left_member:
-        left_user_id = str(left_member.get("id"))
-        if left_user_id in users_dict:
-            del users_dict[left_user_id]
-            await env.KV.put(kv_key, json.dumps(users_dict))
-        return Response.new("OK", status=200)
-
-    if not user_id:
-        return Response.new("OK", status=200)
-
-    # Сохраняем / обновляем активного пользователя в базе чата
-    first_name = user.get("first_name", "User")
-    users_dict[str(user_id)] = {"id": user_id, "name": first_name}
-    
-    if len(users_dict) > 500:
-        users_dict.pop(next(iter(users_dict)))
-    
-    await env.KV.put(kv_key, json.dumps(users_dict))
-
-    bot_token = getattr(env, "BOT_TOKEN", "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg")
-
-    # Обработка команды /ping
-    if text.startswith("/ping"):
-        is_admin = await check_is_admin(bot_token, chat_id, user_id)
-        if not is_admin:
-            await send_telegram_message(
-                bot_token, 
-                chat_id, 
-                "❌ Команда /ping доступна только администраторам чата.", 
-                message.get("message_id")
-            )
-            return Response.new("OK", status=200)
-
-        comment = text[len("/ping"):].strip()
-        if not comment:
-            comment = "Внимание!"
-
-        available_users = [u for uid, u in users_dict.items() if int(uid) != user_id]
-
-        if len(available_users) == 0:
-            await send_telegram_message(
-                bot_token, 
-                chat_id, 
-                "⚠️ В базе пока нет других участников. Напишите что-нибудь в чат для накопления базы!", 
-                message.get("message_id")
-            )
-            return Response.new("OK", status=200)
-
-        selected_users = random.sample(available_users, min(5, len(available_users)))
-
-        mentions = []
-        for u in selected_users:
-            safe_name = escape_html(u["name"])
-            mentions.append(f'<a href="tg://user?id={u["id"]}">{safe_name}</a>')
-
-        response_text = f"<b>{escape_html(comment)}</b>\n\nПингуем участников: " + ", ".join(mentions)
-
-        await send_telegram_message(bot_token, chat_id, response_text, message.get("message_id"))
-
-    return Response.new("OK", status=200)
-
-
-async def check_is_admin(token, chat_id, user_id):
-    url = f"https://api.telegram.org/bot{token}/getChatMember?chat_id={chat_id}&user_id={user_id}"
-    try:
-        res = await cf_fetch(url)
-        data = await res.json()
-        if data.get("ok"):
-            status = data.get("result", {}).get("status")
-            return status in ["creator", "administrator"]
-    except Exception:
-        pass
-    return False
-
-
-async def send_telegram_message(token, chat_id, text, reply_to_message_id=None):
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method !== "POST") {
+      return new Response("Telegram Ping Bot is running successfully!", { status: 200 });
     }
-    if reply_to_message_id:
-        payload["reply_to_message_id"] = reply_to_message_id
 
-    headers = {"Content-Type": "application/json"}
-    await cf_fetch(url, method="POST", headers=headers, body=json.dumps(payload))
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return new Response("Invalid JSON", { status: 400 });
+    }
 
+    const message = body.message || body.edited_message;
+    if (!message) {
+      return new Response("OK", { status: 200 });
+    }
 
-def escape_html(text):
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    const chat = message.chat || {};
+    const chatId = chat.id;
+    const user = message.from || {};
+    const userId = user.id;
+    const text = (message.text || "").trim();
+
+    if (!chatId) {
+      return new Response("OK", { status: 200 });
+    }
+
+    const kvKey = `chat_${chatId}_users`;
+    let storedUsersRaw = await env.KV.get(kvKey);
+    let usersDict = storedUsersRaw ? JSON.parse(storedUsersRaw) : {};
+
+    // Проверяем, не покинул ли участник чат
+    const leftMember = message.left_chat_member;
+    if (leftMember) {
+      const leftUserId = String(leftMember.id);
+      if (usersDict[leftUserId]) {
+        delete usersDict[leftUserId];
+        await env.KV.put(kvKey, JSON.stringify(usersDict));
+      }
+      return new Response("OK", { status: 200 });
+    }
+
+    if (!userId) {
+      return new Response("OK", { status: 200 });
+    }
+
+    // Сохраняем / обновляем активного пользователя в базе чата
+    const firstName = user.first_name || "User";
+    usersDict[String(userId)] = { id: userId, name: firstName };
+
+    const keys = Object.keys(usersDict);
+    if (keys.length > 500) {
+      delete usersDict[keys[0]];
+    }
+
+    await env.KV.put(kvKey, JSON.stringify(usersDict));
+
+    const botToken = env.BOT_TOKEN || "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg";
+
+    // Обработка команды /ping
+    if (text.startsWith("/ping")) {
+      const isAdmin = await checkIfAdmin(botToken, chatId, userId);
+      if (!isAdmin) {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          "❌ Команда /ping доступна только администраторам чата.",
+          message.message_id
+        );
+        return new Response("OK", { status: 200 });
+      }
+
+      const comment = text.slice("/ping".length).trim() || "Внимание!";
+
+      const availableUsers = Object.values(usersDict).filter(u => Number(u.id) !== Number(userId));
+
+      if (availableUsers.length === 0) {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          "⚠️ В базе пока нет других участников. Напишите что-нибудь в чат для накопления базы!",
+          message.message_id
+        );
+        return new Response("OK", { status: 200 });
+      }
+
+      const selectedUsers = getRandomSample(availableUsers, 5);
+
+      const mentions = selectedUsers.map(u => {
+        const safeName = escapeHtml(u.name);
+        return `<a href="tg://user?id=${u.id}">${safeName}</a>`;
+      });
+
+      const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем участников: ` + mentions.join(", ");
+
+      await sendTelegramMessage(botToken, chatId, responseText, message.message_id);
+    }
+
+    return new Response("OK", { status: 200 });
+  }
+};
+
+async function checkIfAdmin(token, chatId, userId) {
+  const url = `https://api.telegram.org/bot${token}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.ok) {
+      const status = data.result?.status;
+      return status === "creator" || status === "administrator";
+    }
+  } catch (e) {}
+  return false;
+}
+
+async function sendTelegramMessage(token, chatId, text, replyToMessageId) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: "HTML"
+  };
+  if (replyToMessageId) {
+    payload.reply_to_message_id = replyToMessageId;
+  }
+
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+function getRandomSample(arr, count) {
+  const shuffled = [...arr].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
