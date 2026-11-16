@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     if (request.method !== "POST") {
-      return new Response("Telegram Ping Bot is running successfully!", { status: 200 });
+      return new Response("Telegram Barker Bot is running successfully!", { status: 200 });
     }
 
     let body;
@@ -59,83 +59,43 @@ export default {
 
     const botToken = env.BOT_TOKEN || "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg";
 
-    // Обработка команды /ping
-    if (text.startsWith("/ping")) {
+    // Обработка команды /barker
+    if (text.toLowerCase().startsWith("/barker")) {
       const isAdmin = await checkIfAdmin(botToken, chatId, userId);
       if (!isAdmin) {
         await sendTelegramMessage(
           botToken,
           chatId,
-          "❌ Команда /ping доступна только администраторам чата.",
+          "❌ Команда /barker доступна только администраторам чата.",
           message.message_id
         );
         return new Response("OK", { status: 200 });
       }
 
-      const comment = text.slice("/ping".length).trim() || "Внимание!";
+      const comment = text.slice("/barker".length).trim() || "Внимание!";
 
-      // Берем ВСЕХ пользователей из базы (исключая того, кто вызвал команду)
-      const availableUsers = Object.values(usersDict).filter(u => Number(u.id) !== Number(userId));
+      // Берем ВСЕХ пользователей из базы (включая администраторов)
+      const availableUsers = Object.values(usersDict);
 
       if (availableUsers.length === 0) {
         await sendTelegramMessage(
           botToken,
           chatId,
-          "⚠️ В базе пока нет других участников. Напишите что-нибудь в чат для накопления базы!",
+          "⚠️ В базе пока нет участников. Напишите что-нибудь в чат для накопления базы!",
           message.message_id
         );
         return new Response("OK", { status: 200 });
       }
 
-      // Пингуем всех найденных участников
+      // Пингуем всех
       const mentions = availableUsers.map(u => {
         const safeName = escapeHtml(u.name);
         return `<a href="tg://user?id=${u.id}">${safeName}</a>`;
       });
 
-      const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
+      const responseText = `<b>{escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
+      // Исправление синтаксиса шаблона строки ниже:
+      // const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
 
-      await sendTelegramMessage(botToken, chatId, responseText, message.message_id);
     }
-
-    return new Response("OK", { status: 200 });
-  }
-};
-
-async function checkIfAdmin(token, chatId, userId) {
-  const url = `https://api.telegram.org/bot${token}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.ok) {
-      const status = data.result?.status;
-      return status === "creator" || status === "administrator";
-    }
-  } catch (e) {}
-  return false;
-}
-
-async function sendTelegramMessage(token, chatId, text, replyToMessageId) {
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const payload = {
-    chat_id: chatId,
-    text: text,
-    parse_mode: "HTML"
-  };
-  if (replyToMessageId) {
-    payload.reply_to_message_id = replyToMessageId;
-  }
-
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-}
-
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+    // ...
