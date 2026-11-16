@@ -1,8 +1,8 @@
 import json
 import random
-from js import Response, fetch
+from js import Response, fetch as cf_fetch
 
-async def on_fetch(request, env, ctx):
+async def fetch(request, env, ctx):
     if request.method != "POST":
         return Response.new("Telegram Ping Bot is running successfully!", status=200)
 
@@ -95,7 +95,7 @@ async def on_fetch(request, env, ctx):
 async def check_is_admin(token, chat_id, user_id):
     url = f"https://api.telegram.org/bot{token}/getChatMember?chat_id={chat_id}&user_id={user_id}"
     try:
-        res = await fetch(url)
+        res = await cf_fetch(url)
         data = await res.json()
         if data.get("ok"):
             status = data.get("result", {}).get("status")
@@ -116,7 +116,7 @@ async def send_telegram_message(token, chat_id, text, reply_to_message_id=None):
         payload["reply_to_message_id"] = reply_to_message_id
 
     headers = {"Content-Type": "application/json"}
-    await fetch(url, method="POST", headers=headers, body=json.dumps(payload))
+    await cf_fetch(url, method="POST", headers=headers, body=json.dumps(payload))
 
 
 def escape_html(text):
