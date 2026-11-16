@@ -86,9 +86,8 @@ export default {
         return `<a href="tg://user?id=${u.id}">${safeName}</a>`;
       });
 
-      const responseText = `<b>{escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
-      // Заменено на корректное выражение со знаком $:
-      // const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
+      // Исправленный шаблон строки: теперь комментарий подставляется корректно
+      const responseText = `<b>${escapeHtml(comment)}</b>\n\nПингуем всех: ` + mentions.join(", ");
       
       await sendTelegramMessage(botToken, chatId, responseText, message.message_id);
     }
