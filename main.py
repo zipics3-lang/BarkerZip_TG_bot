@@ -3,7 +3,6 @@ import random
 from js import Response, fetch
 
 async def on_fetch(request, env, ctx):
-    # Проверка работоспособности при открытии URL в браузере
     if request.method != "POST":
         return Response.new("Telegram Ping Bot is running successfully!", status=200)
 
@@ -25,39 +24,35 @@ async def on_fetch(request, env, ctx):
     if not chat_id:
         return Response.new("OK", status=200)
 
-    # Уникальный ключ для базы данных чата в Cloudflare KV
     kv_key = f"chat_{chat_id}_users"
-    stored_users_raw = await env.USERS_KV.get(kv_key)
+    stored_users_raw = await env.KV.get(kv_key)
     users_dict = json.loads(stored_users_raw) if stored_users_raw else {}
 
-    # 1. Проверяем, не покинул ли участник чат
+    # Проверяем, не покинул ли участник чат
     left_member = message.get("left_chat_member")
     if left_member:
         left_user_id = str(left_member.get("id"))
         if left_user_id in users_dict:
             del users_dict[left_user_id]
-            await env.USERS_KV.put(kv_key, json.dumps(users_dict))
+            await env.KV.put(kv_key, json.dumps(users_dict))
         return Response.new("OK", status=200)
 
     if not user_id:
         return Response.new("OK", status=200)
 
-    # 2. Сохраняем / обновляем активного пользователя в базе чата
+    # Сохраняем / обновляем активного пользователя в базе чата
     first_name = user.get("first_name", "User")
     users_dict[str(user_id)] = {"id": user_id, "name": first_name}
     
-    # Ограничиваем размер базы до 500 последних активных участников
     if len(users_dict) > 500:
         users_dict.pop(next(iter(users_dict)))
     
-    await env.USERS_KV.put(kv_key, json.dumps(users_dict))
+    await env.KV.put(kv_key, json.dumps(users_dict))
 
-    # Токен бота (из переменных окружения или запасной вариант)
     bot_token = getattr(env, "BOT_TOKEN", "8862778494:AAEZhxIsr4gVRGR1bnh7w2OATnZI5sSw3Tg")
 
-    # 3. Обработка команды /ping
+    # Обработка команды /ping
     if text.startswith("/ping"):
-        # Проверяем, является ли пользователь администратором
         is_admin = await check_is_admin(bot_token, chat_id, user_id)
         if not is_admin:
             await send_telegram_message(
@@ -68,12 +63,10 @@ async def on_fetch(request, env, ctx):
             )
             return Response.new("OK", status=200)
 
-        # Извлекаем текст комментария (все, что идет после /ping)
         comment = text[len("/ping"):].strip()
         if not comment:
             comment = "Внимание!"
 
-        # Доступные пользователи (исключаем автора команды, чтобы бот не тегал самого админа)
         available_users = [u for uid, u in users_dict.items() if int(uid) != user_id]
 
         if len(available_users) == 0:
@@ -85,10 +78,8 @@ async def on_fetch(request, env, ctx):
             )
             return Response.new("OK", status=200)
 
-        # Выбираем до 5 случайных пользователей
         selected_users = random.sample(available_users, min(5, len(available_users)))
 
-        # Формируем HTML упоминания
         mentions = []
         for u in selected_users:
             safe_name = escape_html(u["name"])
@@ -102,7 +93,6 @@ async def on_fetch(request, env, ctx):
 
 
 async def check_is_admin(token, chat_id, user_id):
-    """Проверка прав администратора через Telegram API"""
     url = f"https://api.telegram.org/bot{token}/getChatMember?chat_id={chat_id}&user_id={user_id}"
     try:
         res = await fetch(url)
@@ -116,7 +106,6 @@ async def check_is_admin(token, chat_id, user_id):
 
 
 async def send_telegram_message(token, chat_id, text, reply_to_message_id=None):
-    """Отправка сообщения в чат с поддержкой HTML-разметки"""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -131,5 +120,4 @@ async def send_telegram_message(token, chat_id, text, reply_to_message_id=None):
 
 
 def escape_html(text):
-    """Экранирование спецсимволов для HTML в Telegram"""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
